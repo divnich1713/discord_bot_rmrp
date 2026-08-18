@@ -237,13 +237,17 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         config = self.bot.config
         guild = interaction.guild
 
-        # Убираем роль курсанта, даём роль провалившегося
-        cadet_role_id = config["roles"].get("cadet", 0)
+        # Убираем роль курсанта и подразделение АВНГ, даём роль провалившегося
+        for key in ["cadet", "div_avng"]:
+            rid = config["roles"].get(key, 0)
+            if rid:
+                r = guild.get_role(rid)
+                if r and r in участник.roles:
+                    try:
+                        await участник.remove_roles(r)
+                    except Exception:
+                        pass
         failed_role_id = config["roles"].get("failed_cadet", 0)
-        if cadet_role_id:
-            r = guild.get_role(cadet_role_id)
-            if r and r in участник.roles:
-                await участник.remove_roles(r)
         if failed_role_id:
             r = guild.get_role(failed_role_id)
             if r:
@@ -301,10 +305,10 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         )
         await self.bot.db.add_promotion(str(member.id), old_rank, 4, str(approved_by.id))
 
-        # Меняем роли: снимаем курсантские и рядовой, выдаём сержанта
+        # Меняем роли: снимаем курсантские, подразделение АВНГ и рядового, выдаём сержанта
         config = self.bot.config
         roles_cfg = config["roles"]
-        for key in ["cadet", "candidate", "failed_cadet", "private"]:
+        for key in ["cadet", "candidate", "failed_cadet", "private", "div_avng"]:
             rid = roles_cfg.get(key, 0)
             if rid:
                 role = guild.get_role(rid)
