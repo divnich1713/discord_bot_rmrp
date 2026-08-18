@@ -68,8 +68,13 @@ def forum_dossier_embed(
 
     # 2. Служебный статус
     embed.add_field(
-        name="🎖️ Звание и статус",
-        value=f"**{rank['prefix']} {rank['name']}**\n{status_label}",
+        name="🎖️ Звание",
+        value=f"**{rank['prefix']} {rank['name']}**",
+        inline=True,
+    )
+    embed.add_field(
+        name="📊 Статус",
+        value=f"**{status_label}**",
         inline=True,
     )
 
