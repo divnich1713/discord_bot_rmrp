@@ -369,6 +369,80 @@ def appeal_decision_embed(
     return e
 
 
+def reprimand_removal_embed(
+    report_id: int,
+    member: discord.Member,
+    member_data: Optional[Dict],
+    date_issued: str,
+    punishment_type: str,
+    reprimand_url: str,
+    issued_by: str,
+    proof: str,
+    rank_name: str = "Сотрудник",
+    position_name: str = "",
+) -> discord.Embed:
+    """Генерирует официальный embed рапорта на снятие взыскания (отработки) по образцу"""
+    fio = member_data.get("game_name", member.display_name) if member_data else member.display_name
+    static_id = member_data.get("static_id", "—") if member_data else "—"
+    today_str = datetime.utcnow().strftime("%d.%m.%Y")
+    pos_str = f" {position_name}" if position_name else ""
+
+    description = (
+        "**Кому:**\n"
+        "<@&1245655611627143168>\n"
+        "<@&1471213803445293150>\n"
+        "<@&1245655611568427054>\n"
+        "<@&1271632346780663859>\n"
+        "<@&1527952234422210681>\n"
+        "<@&1527953170490462290>\n\n"
+        "```\n"
+        "                     РАПОРТ\n"
+        "       на снятие дисциплинарного взыскания\n"
+        "                   (ОТРАБОТКА)\n"
+        "```\n"
+        f"**Ваше ФИО:** {fio} | `{static_id}` | {member.mention}\n"
+        f"**Звание и должность:** {rank_name}{pos_str}\n"
+        f"**Дата выдачи наказания:** `{date_issued}`\n"
+        f"**Вид дисциплинарного взыскания:** **{punishment_type}**\n"
+        f"🔗 **Ссылка на дисциплинарное взыскание:**\n{reprimand_url}\n"
+        f"👤 **Кем выдано наказание:** {issued_by}\n\n"
+        f"📸 **Доказательства проделанной работы (отработки):**\n{proof}\n\n"
+        f"**Дата подачи:** `{today_str}`"
+    )
+
+    e = discord.Embed(
+        title=f"📋 РАПОРТ НА СНЯТИЕ ВЗЫСКАНИЯ (ОТРАБОТКА) #{report_id}",
+        description=description,
+        color=COLORS["gold"],
+        timestamp=datetime.utcnow(),
+    )
+    e.set_footer(text=f"ID рапорта: #{report_id} • 🟡 Ожидает проверки отработки")
+    return e
+
+
+def reprimand_removal_decision_embed(
+    report_id: int,
+    original_embed: discord.Embed,
+    approved: bool,
+    reviewer: discord.Member,
+    comment: Optional[str] = None,
+) -> discord.Embed:
+    """Обновляет embed рапорта на снятие взыскания при принятии решения"""
+    e = discord.Embed(
+        title=original_embed.title,
+        description=original_embed.description,
+        color=COLORS["success"] if approved else COLORS["error"],
+        timestamp=datetime.utcnow(),
+    )
+    status_text = "✅ ОДОБРЕНО (Отработка принята / Взыскание снято)" if approved else "❌ ОТКЛОНЕНО (Отработка не принята)"
+    e.add_field(name="⚖️ Решение по отработке", value=f"**{status_text}**", inline=False)
+    e.add_field(name="Проверил", value=reviewer.mention, inline=True)
+    if comment:
+        e.add_field(name="Замечания / Комментарий", value=comment, inline=False)
+    e.set_footer(text=f"ID рапорта: #{report_id} • Проверено: {reviewer.display_name}")
+    return e
+
+
 # ─────────────────────────── ПОВЫШЕНИЯ ───────────────────────────
 
 def promotion_embed(member: discord.Member, from_rank: int,

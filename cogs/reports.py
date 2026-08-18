@@ -685,6 +685,18 @@ class ReportsCog(commands.Cog, name="Рапорты"):
         modal = AppealModal(cog)
         await interaction.response.send_modal(modal)
 
+    # ─────────────── РАПОРТ — ОТРАБОТКА ВЗЫСКАНИЯ ───────────────
+
+    @report_group.command(name="отработка", description="📋 Подать рапорт на снятие взыскания (отработка)")
+    @faction_member_only()
+    async def report_removal(self, interaction: discord.Interaction):
+        from cogs.appeals import ReprimandRemovalModal, AppealsCog
+        cog = self.bot.get_cog("Ходатайства и Обжалования")
+        if not cog:
+            cog = AppealsCog(self.bot)
+        modal = ReprimandRemovalModal(cog)
+        await interaction.response.send_modal(modal)
+
     # ─────────────── ОТЧЁТ О РАБОТЕ ───────────────
 
     @report_group.command(name="работа", description="📝 Подать отчёт о проделанной работе")
