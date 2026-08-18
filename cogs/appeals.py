@@ -308,8 +308,26 @@ class AppealModal(discord.ui.Modal, title="⚖️ Ходатайство о сн
         )
 
         if ch:
-            msg = await ch.send(f"⚖️ **Новое ходатайство о снятии дисциплинарного взыскания!**\n{ping}", embed=embed, view=view)
-            await self.cog.bot.db.set_appeal_message(appeal_id, str(msg.id))
+            if isinstance(ch, discord.ForumChannel):
+                fio = member_data.get("game_name", interaction.user.display_name)
+                thread_name = f"Ходатайство #{appeal_id} | {fio}"
+                if len(thread_name) > 100:
+                    thread_name = thread_name[:97] + "..."
+                thread_with_msg = await ch.create_thread(
+                    name=thread_name,
+                    content=f"⚖️ **Новое ходатайство о снятии дисциплинарного взыскания!**\n{ping}",
+                    embed=embed,
+                    view=view,
+                )
+                msg = thread_with_msg.message
+                await self.cog.bot.db.set_appeal_message(appeal_id, str(msg.id))
+            else:
+                msg = await ch.send(
+                    f"⚖️ **Новое ходатайство о снятии дисциплинарного взыскания!**\n{ping}",
+                    embed=embed,
+                    view=view,
+                )
+                await self.cog.bot.db.set_appeal_message(appeal_id, str(msg.id))
         else:
             await interaction.followup.send(embed=embed, view=view)
 

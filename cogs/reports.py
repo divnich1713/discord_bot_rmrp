@@ -246,8 +246,17 @@ class ReportsCog(commands.Cog, name="Рапорты"):
 
         reports_ch = guild.get_channel(ch_id) if ch_id else None
         if reports_ch:
-            msg = await reports_ch.send(embed=embed)
-            await self.bot.db.set_report_message(report_id, str(msg.id))
+            if isinstance(reports_ch, discord.ForumChannel):
+                target_name = target_data.get("game_name", target.display_name) if target_data else target.display_name
+                thread_name = f"Взыскание #{report_id} | {target_name}"
+                if len(thread_name) > 100:
+                    thread_name = thread_name[:97] + "..."
+                thread_with_msg = await reports_ch.create_thread(name=thread_name, embed=embed)
+                msg = thread_with_msg.message
+                await self.bot.db.set_report_message(report_id, str(msg.id))
+            else:
+                msg = await reports_ch.send(embed=embed)
+                await self.bot.db.set_report_message(report_id, str(msg.id))
         else:
             await interaction.followup.send(embed=embed)
 
