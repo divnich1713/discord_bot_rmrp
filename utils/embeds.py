@@ -291,7 +291,7 @@ def dossier_embed(member_data: Dict, discord_member: Optional[discord.Member],
     # Основная информация
     mention = discord_member.mention if discord_member else f"<@{member_data['discord_id']}>"
     e.add_field(name="👤 Discord", value=mention, inline=True)
-    e.add_field(name="🎖️ Звание", value=f"{rank['prefix']} {rank['name']}", inline=True)
+    e.add_field(name="🎖️ Звание", value=rank['name'], inline=True)
     e.add_field(name="📊 Статус", value=status_label, inline=True)
 
     # Даты
@@ -434,7 +434,7 @@ def roster_embed(members: List[Dict], guild: discord.Guild) -> discord.Embed:
             gm = guild.get_member(int(m["discord_id"]))
             lines.append(gm.mention if gm else m["game_name"])
         e.add_field(
-            name=f"{rank['prefix']} {rank['name']} ({len(members_in_rank)})",
+            name=f"{rank['name']} ({len(members_in_rank)})",
             value=", ".join(lines) or "—",
             inline=False,
         )

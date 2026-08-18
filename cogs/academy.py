@@ -334,10 +334,10 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
             await DossierService.log_event(
                 self.bot, guild, str(member.id),
                 title="🎓 Успешное окончание Академии АВНГ",
-                description="Курсант успешно завершил обучение в Академии АВНГ и зачислен в ряды Росгвардии в звании **Сержант [СРЖ]**.",
+                description="Курсант успешно завершил обучение в Академии АВНГ и зачислен в ряды Росгвардии в звании **Сержант**.",
                 color=COLORS["success"],
                 fields=[
-                    ("Присвоенное звание", "Сержант [СРЖ]", True),
+                    ("Присвоенное звание", "Сержант", True),
                     ("Инструктор / Выпустил", approved_by.mention, True),
                 ],
                 author=approved_by,

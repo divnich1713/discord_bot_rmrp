@@ -12,7 +12,7 @@ from utils.embeds import report_embed, report_decision_embed
 
 def build_rank_choices():
     return [
-        app_commands.Choice(name=f"{r['prefix']} {r['name']}", value=r["id"])
+        app_commands.Choice(name=r["name"], value=r["id"])
         for r in RANKS[2:]  # Начиная с Рядового
     ]
 

@@ -93,7 +93,7 @@ def forum_dossier_embed(
     # 2. Служебный статус
     embed.add_field(
         name="🎖️ Звание",
-        value=f"**{rank['prefix']} {rank['name']}**",
+        value=f"**{rank['name']}**",
         inline=True,
     )
     embed.add_field(
