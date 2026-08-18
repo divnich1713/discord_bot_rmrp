@@ -91,7 +91,7 @@ class ApplicationModal(discord.ui.Modal):
                 except Exception:
                     pass
 
-        type_labels = {"interview": "🎤 Собеседование"}
+        type_labels = {"interview": "📢 Собеседование"}
         type_colors = {"interview": 0x3498DB}
 
         embed = discord.Embed(
@@ -676,7 +676,7 @@ class ApplicationPanelView(discord.ui.View):
         self.cog = cog
 
     @discord.ui.button(
-        label="🎤  Собеседование",
+        label="📢  Собеседование",
         style=discord.ButtonStyle.primary,
         custom_id="app_panel_interview",
         row=0,
@@ -746,7 +746,7 @@ class ApplicationsCog(commands.Cog, name="Заявления"):
             "🔷 Выберите нужный тип заявления и нажмите кнопку ниже.\n"
             "\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\u2003\n"
             "―――――――――――――――――――――――\n"
-            "🎤 **СОБЕСЕДОВАНИЕ**\n"
+            "📢 **СОБЕСЕДОВАНИЕ**\n"
             "› Первичное вступление в Росгвардию с нуля.\n"
             "› Обязательно пройдёте Курс Академии АВНГ.\n\n"
             "🔄 **ПЕРЕВОД / ВОССТАНОВЛЕНИЕ**\n"
