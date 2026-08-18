@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.checks import commander_only, faction_member_only, officer_only
+from utils.checks import commander_only, faction_member_only, officer_only, senior_staff_only
 from utils.constants import COLORS, RANK_BY_ID, RANKS
 from utils.embeds import report_embed, report_decision_embed, reprimand_report_embed
 
@@ -60,16 +60,24 @@ class ReprimandModal(discord.ui.Modal, title="📋 Рапорт о дисцип�
         }
         content_json = json.dumps(content_data, ensure_ascii=False)
 
+        # Рапорт сразу утверждается и вступает в силу (подаёт старший состав / руководство)
         report_id = await self.cog.bot.db.add_report(
             "reprimand", str(interaction.user.id), str(self.target.id), content_json
         )
+        await self.cog.bot.db.update_report(report_id, "approved", str(interaction.user.id))
 
+        # Мгновенное исполнение взыскания
+        await self.cog._execute_reprimand_direct(
+            report_id, interaction.user, self.target, content_data, interaction.guild
+        )
+
+        # Публикация в канал выговоров без кнопок согласования
         await self.cog._send_reprimand_report(
             interaction, report_id, interaction.user, self.target, content_data
         )
 
         await interaction.followup.send(
-            f"✅ Рапорт о дисциплинарном взыскании **#{report_id}** на {self.target.mention} успешно подан и ожидает решения командования!",
+            f"✅ Рапорт о дисциплинарном взыскании **#{report_id}** на {self.target.mention} успешно опубликован и вступил в силу!",
             ephemeral=True,
         )
 
@@ -235,23 +243,96 @@ class ReportsCog(commands.Cog, name="Рапорты"):
             task=content_data.get("task", "—"),
             punishment_role=punishment_role,
         )
-        view = ReportDecisionView(self, report_id)
-
-        commander_ids = config["roles"].get("commander_roles", [])
-        if isinstance(commander_ids, int):
-            commander_ids = [commander_ids]
-        ping = " ".join(f"<@&{r}>" for r in commander_ids if r) or ""
 
         reports_ch = guild.get_channel(ch_id) if ch_id else None
         if reports_ch:
-            msg = await reports_ch.send(
-                f"{ping} ⚠️ Новый рапорт о дисциплинарном взыскании!" if ping else "⚠️ Новый рапорт о дисциплинарном взыскании!",
-                embed=embed,
-                view=view,
-            )
+            msg = await reports_ch.send(embed=embed)
             await self.bot.db.set_report_message(report_id, str(msg.id))
         else:
-            await interaction.followup.send(embed=embed, view=view)
+            await interaction.followup.send(embed=embed)
+
+    async def _execute_reprimand_direct(self, report_id: int, author: discord.Member,
+                                         target: discord.Member, content_data: dict,
+                                         guild: discord.Guild):
+        """Мгновенно применяет дисциплинарное взыскание (подано старшим составом/руководством)"""
+        target_id = str(target.id)
+        article = content_data.get("article", "В.У. 3.3")
+        proof = content_data.get("proof", "По запросу")
+        punishment = content_data.get("punishment", "Выговор 1/2")
+        task = content_data.get("task", "—")
+
+        p_lower = punishment.lower()
+        role_key = "reprimand_1"
+        rep_type = "reprimand"
+        if "2/2" in p_lower or "второй" in p_lower:
+            role_key = "reprimand_2"
+            rep_type = "reprimand_2"
+        elif "2/3" in p_lower:
+            role_key = "warn_2"
+            rep_type = "warn_2"
+        elif "предупреждение" in p_lower or "1/3" in p_lower:
+            role_key = "warn_1"
+            rep_type = "warn"
+
+        await self.bot.db.add_reprimand(
+            target_id, f"{article} (Отработка: {task})", str(author.id), rep_type
+        )
+
+        # Обновляем роли
+        config = self.bot.config
+        for k in ["warn_1", "warn_2", "reprimand_1", "reprimand_2"]:
+            rid = config["roles"].get(k, 0)
+            if rid:
+                r = guild.get_role(rid)
+                if r and r in target.roles:
+                    try:
+                        await target.remove_roles(r)
+                    except Exception:
+                        pass
+        new_rid = config["roles"].get(role_key, 0)
+        if new_rid:
+            new_r = guild.get_role(new_rid)
+            if new_r:
+                try:
+                    await target.add_roles(new_r, reason=f"Взыскание по рапорту #{report_id}")
+                except Exception:
+                    pass
+
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            await DossierService.log_event(
+                self.bot, guild, target_id,
+                title=f"⚠️ Дисциплинарное взыскание | Рапорт #{report_id}",
+                description=f"Сотруднику назначено дисциплинарное взыскание по приказу старшего состава #{report_id}.",
+                color=COLORS["warning"],
+                fields=[
+                    ("1. Пункт устава", article, True),
+                    ("2. Мера наказания", punishment, True),
+                    ("3. Доказательства", proof, True),
+                    ("4. Задание на отработку", task, False),
+                    ("5. Наложил взыскание", author.mention, True),
+                ],
+                author=author,
+            )
+        except Exception:
+            pass
+
+        # DM нарушителю
+        try:
+            e_dm = discord.Embed(
+                title="⚠️ Вам назначено дисциплинарное взыскание",
+                description=f"По приказу старшего состава **#{report_id}** вам назначено дисциплинарное взыскание.",
+                color=COLORS["warning"],
+            )
+            e_dm.add_field(name="📜 Пункт устава", value=article, inline=True)
+            e_dm.add_field(name="🔴 Мера наказания", value=punishment, inline=True)
+            e_dm.add_field(name="📸 Доказательства", value=proof, inline=True)
+            e_dm.add_field(name="🛠️ Задание на отработку", value=f"```\n{task}\n```", inline=False)
+            e_dm.add_field(name="Выдал", value=author.mention, inline=True)
+            await target.send(embed=e_dm)
+        except Exception:
+            pass
 
     async def _execute_report(self, report: dict, approved_by: discord.Member,
                                guild: discord.Guild):
@@ -570,9 +651,9 @@ class ReportsCog(commands.Cog, name="Рапорты"):
 
     # ─────────────── РАПОРТ — ВЗЫСКАНИЕ ───────────────
 
-    @report_group.command(name="взыскание", description="⚠️ Подать рапорт о дисциплинарном взыскании (форма)")
-    @app_commands.describe(участник="На кого подаётся рапорт о взыскании")
-    @officer_only()
+    @report_group.command(name="взыскание", description="⚠️ Выдать дисциплинарное взыскание сотруднику (форма)")
+    @app_commands.describe(участник="На кого налагается взыскание")
+    @senior_staff_only()
     async def report_reprimand(self, interaction: discord.Interaction,
                                 участник: discord.Member):
         member_data = await self.bot.db.get_member(str(участник.id))

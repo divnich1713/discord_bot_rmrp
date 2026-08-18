@@ -129,3 +129,36 @@ def faction_member_only():
             )
         return True
     return app_commands.check(predicate)
+
+
+def is_senior_staff(interaction: discord.Interaction) -> bool:
+    """
+    Старший состав и руководство (Нач., Зам. Нач., Старший состав).
+    Администраторы и командиры всегда имеют доступ.
+    """
+    if is_commander(interaction):
+        return True
+    senior_keys = [
+        "nach_ufsvng", "zam1_ufsvng", "zam_ufsvng", "pomoshnik_ufsvng",
+        "starshiy_sostav_ufsvng",
+        "komandír_sobr", "zam_komandira_sobr",
+        "komandír_omon", "zam_komandira_omon",
+        "nach_avng", "zam_nach_avng",
+        "nach_uvo", "zam_nach_uvo",
+        "nach_usb", "zam_nach_usb",
+    ]
+    for key in senior_keys:
+        ids = _get_role_ids(interaction, key)
+        if _has_any_role(interaction, ids):
+            return True
+    return False
+
+
+def senior_staff_only():
+    def predicate(interaction: discord.Interaction) -> bool:
+        if not is_senior_staff(interaction):
+            raise app_commands.CheckFailure(
+                "❌ Только старший состав и руководство (Нач., Зам. Нач., Ст. Состав) могут подавать рапорты на выговоры!"
+            )
+        return True
+    return app_commands.check(predicate)

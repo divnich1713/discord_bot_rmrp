@@ -276,7 +276,7 @@ def reprimand_report_embed(
         punish_str += f" ({punishment_role.mention})"
     e.add_field(name="5. Мера наказания", value=punish_str, inline=True)
     e.add_field(name="6. Отработка для снятия", value=f"```\n{task}\n```", inline=False)
-    e.set_footer(text=f"ID рапорта: #{report_id} • 🟡 Ожидает решения командования")
+    e.set_footer(text=f"ID рапорта: #{report_id} • 🔴 Взыскание вступило в силу • Выдал: {author.display_name}")
     return e
 
 
