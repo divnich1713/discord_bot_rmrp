@@ -443,6 +443,108 @@ def reprimand_removal_decision_embed(
     return e
 
 
+def weekly_report_embed(data: Dict, guild: Optional[discord.Guild] = None) -> discord.Embed:
+    """Генерирует официальный еженедельный аналитический отчёт командованию"""
+    today_str = datetime.utcnow().strftime("%d.%m.%Y")
+
+    overview = data.get("members_overview", {})
+    total = overview.get("total", 0)
+    active = overview.get("active", 0)
+    cadet = overview.get("cadet", 0)
+    vacation = overview.get("vacation", 0)
+    new_in = data.get("new_members_count", 0)
+
+    acad = data.get("academy_stats", {})
+    enrolled = acad.get("enrolled_week", 0)
+    grad = acad.get("graduated_week", 0)
+    failed = acad.get("failed_week", 0)
+
+    top_inst = data.get("top_instructor")
+    inst_text = "—"
+    if top_inst:
+        inst_text = f"<@{top_inst['tested_by']}> ({top_inst['exams_count']} экзаменов)"
+
+    prom_count = data.get("promotions_count", 0)
+    rep_count = data.get("work_reports_count", 0)
+
+    workers = data.get("top_workers", [])
+    if workers:
+        w_lines = [f"**{i+1}.** {w['game_name']} (<@{w['discord_id']}>) — `{w['report_count']}` отчётов" for i, w in enumerate(workers)]
+        top_workers_str = "\n".join(w_lines)
+    else:
+        top_workers_str = "—"
+
+    bonuses = data.get("bonuses_stats", {})
+    b_cnt = bonuses.get("count", 0)
+    b_sum = bonuses.get("total_sum", 0)
+
+    reprimands_cnt = data.get("reprimands_count", 0)
+    cleared_cnt = data.get("cleared_count", 0)
+
+    divisions = data.get("divisions", [])
+    if divisions:
+        div_str = " • ".join([f"**{d['position_prefix']}:** `{d['cnt']}`" for d in divisions])
+    else:
+        div_str = "—"
+
+    e = discord.Embed(
+        title="📊 ЕЖЕНЕДЕЛЬНЫЙ СЛУЖЕБНЫЙ ОТЧЁТ КОМАНДОВАНИЮ",
+        description=(
+            f"**Период:** Последние 7 дней (на дату `{today_str}`)\n"
+            f"Официальная сводка жизнедеятельности и показателей УФСВНГ."
+        ),
+        color=COLORS["gold"],
+        timestamp=datetime.utcnow(),
+    )
+
+    e.add_field(
+        name="👥 1. Личный состав и движение",
+        value=(
+            f"• Всего в базе: **{total}** чел.\n"
+            f"• В строю: **{active}** | Курсантов: **{cadet}** | В отпуске: **{vacation}**\n"
+            f"• Принято во фракцию за 7 дн.: **+{new_in}** чел."
+        ),
+        inline=False,
+    )
+
+    e.add_field(
+        name="🎓 2. Академия АВНГ",
+        value=(
+            f"• Поступило на обучение: **{enrolled}**\n"
+            f"• Выпустились (Сержанты): **{grad}**\n"
+            f"• Отчислено: **{failed}**\n"
+            f"• 👨‍🏫 Лучший инструктор: {inst_text}"
+        ),
+        inline=True,
+    )
+
+    e.add_field(
+        name="📈 3. Служебная деятельность",
+        value=(
+            f"• Присвоено званий (повышений): **{prom_count}**\n"
+            f"• Сдано отчётов о работе: **{rep_count}**\n"
+            f"• 💰 Премий выдано: **{b_cnt}** (на сумму `{b_sum:,}` ₽)\n"
+            f"• ⚠️ Взысканий выдано: **{reprimands_cnt}** | Снято: **{cleared_cnt}**"
+        ),
+        inline=True,
+    )
+
+    e.add_field(
+        name="🏢 4. Численность по подразделениям",
+        value=div_str,
+        inline=False,
+    )
+
+    e.add_field(
+        name="🏆 5. Топ сотрудников недели по отчётам",
+        value=top_workers_str,
+        inline=False,
+    )
+
+    e.set_footer(text="УФСВНГ • Автоматический аналитический отчёт • Воскресенье 21:00 МСК")
+    return e
+
+
 # ─────────────────────────── ПОВЫШЕНИЯ ───────────────────────────
 
 def promotion_embed(member: discord.Member, from_rank: int,

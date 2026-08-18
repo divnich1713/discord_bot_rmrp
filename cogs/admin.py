@@ -534,6 +534,27 @@ class AdminCog(commands.Cog, name="Администрирование"):
             f"✅ Статусные роли с {участник.mention} сняты.", ephemeral=True
         )
 
+    @admin_group.command(name="еженедельный_отчёт", description="📊 Сформировать и отправить еженедельный отчёт командованию")
+    @app_commands.describe(опубликовать_в_канал="Опубликовать в официальный канал отчётов? (по умолчанию True)")
+    @commander_only()
+    async def admin_weekly_report(self, interaction: discord.Interaction,
+                                   опубликовать_в_канал: bool = True):
+        await interaction.response.defer(ephemeral=True)
+        from utils.scheduler import TaskScheduler
+        scheduler = TaskScheduler(self.bot)
+        target_ch = None if опубликовать_в_канал else interaction.channel
+        embed = await scheduler.send_weekly_report(target_channel=target_ch)
+        if embed:
+            if опубликовать_в_канал:
+                ch_id = self.bot.config["channels"].get("weekly_reports", 1539378119788732416)
+                await interaction.followup.send(
+                    f"✅ Еженедельный отчёт успешно опубликован в <#{ch_id}>!", ephemeral=True
+                )
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send("❌ Не удалось сформировать еженедельный отчёт.", ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))

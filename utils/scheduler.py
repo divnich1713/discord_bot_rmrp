@@ -3,6 +3,7 @@ Scheduler — Фоновые задачи (проверка истечения �
 """
 import asyncio
 from datetime import datetime, timedelta
+from typing import Optional
 
 import discord
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -24,8 +25,18 @@ class TaskScheduler:
             id="academy_check",
             replace_existing=True,
         )
+        # Каждое воскресенье в 21:00 МСК (18:00 UTC)
+        self.scheduler.add_job(
+            self.send_weekly_report,
+            "cron",
+            day_of_week="sun",
+            hour=18,
+            minute=0,
+            id="weekly_report",
+            replace_existing=True,
+        )
         self.scheduler.start()
-        print("✅ Планировщик запущен (проверка каждый час)")
+        print("✅ Планировщик запущен (проверка академии каждый час, еженедельный отчёт по воскресеньям в 21:00 МСК)")
 
     async def _check_academy_deadlines(self):
         """Проверяет сроки обучения курсантов"""
@@ -147,3 +158,43 @@ class TaskScheduler:
             await member.send(embed=embed)
         except Exception:
             pass
+
+    async def send_weekly_report(self, target_channel: Optional[discord.TextChannel] = None) -> Optional[discord.Embed]:
+        """Генерирует и публикует еженедельный отчёт командованию"""
+        try:
+            from utils.embeds import weekly_report_embed
+            config = self.bot.config
+            guild_id = config.get("guild_id", 0)
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                return None
+
+            # 1. Собираем статистику
+            stats_data = await self.bot.db.get_weekly_statistics()
+            embed = weekly_report_embed(stats_data, guild)
+
+            # 2. Определяем канал отправки
+            if target_channel:
+                ch = target_channel
+            else:
+                ch_id = config["channels"].get("weekly_reports", 1539378119788732416)
+                ch = guild.get_channel(ch_id)
+
+            if ch:
+                if isinstance(ch, discord.ForumChannel):
+                    today_str = datetime.utcnow().strftime("%d.%m.%Y")
+                    await ch.create_thread(
+                        name=f"📊 Еженедельный отчёт | {today_str}",
+                        content="📊 **Официальная еженедельная сводка командованию УФСВНГ**",
+                        embed=embed,
+                    )
+                else:
+                    await ch.send(
+                        content="📊 **Официальная еженедельная сводка командованию УФСВНГ**",
+                        embed=embed,
+                    )
+
+            return embed
+        except Exception as e:
+            print(f"❌ Ошибка отправки еженедельного отчёта: {e}")
+            return None

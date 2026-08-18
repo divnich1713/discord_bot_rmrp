@@ -815,3 +815,112 @@ class Database:
             )
             await self._conn.commit()
             return cur.rowcount > 0
+
+    async def get_weekly_statistics(self) -> Dict:
+        """Собирает комплексную статистику жизнедеятельности фракции за последние 7 дней."""
+        # 1. Состав и движение
+        stats_cur = await self._conn.execute("""
+            SELECT
+                SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS active,
+                SUM(CASE WHEN status='cadet' THEN 1 ELSE 0 END) AS cadet,
+                SUM(CASE WHEN status='vacation' THEN 1 ELSE 0 END) AS vacation,
+                SUM(CASE WHEN status='fired' THEN 1 ELSE 0 END) AS fired,
+                COUNT(*) AS total
+            FROM members
+        """)
+        members_overview = dict(await stats_cur.fetchone() or {})
+
+        new_members_cur = await self._conn.execute(
+            "SELECT COUNT(*) AS cnt FROM applications WHERE status='approved' AND created_at >= datetime('now', '-7 days')"
+        )
+        new_members_count = (await new_members_cur.fetchone())["cnt"]
+
+        # 2. Академия АВНГ
+        academy_cur = await self._conn.execute("""
+            SELECT
+                COUNT(CASE WHEN joined_academy >= datetime('now', '-7 days') THEN 1 END) AS enrolled_week,
+                COUNT(CASE WHEN status='active' AND joined_faction >= datetime('now', '-7 days') THEN 1 END) AS graduated_week,
+                COUNT(CASE WHEN status='failed' AND updated_at >= datetime('now', '-7 days') THEN 1 END) AS failed_week
+            FROM members
+        """)
+        academy_stats = dict(await academy_cur.fetchone() or {})
+
+        top_instructor_cur = await self._conn.execute("""
+            SELECT tested_by, COUNT(*) as exams_count
+            FROM exam_results
+            WHERE tested_at >= datetime('now', '-7 days')
+            GROUP BY tested_by
+            ORDER BY exams_count DESC
+            LIMIT 1
+        """)
+        top_inst_row = await top_instructor_cur.fetchone()
+        top_instructor = dict(top_inst_row) if top_inst_row else None
+
+        # 3. Повышения и Отчёты
+        prom_cur = await self._conn.execute(
+            "SELECT COUNT(*) as cnt FROM promotions WHERE promoted_at >= datetime('now', '-7 days')"
+        )
+        promotions_count = (await prom_cur.fetchone())["cnt"]
+
+        reports_cur = await self._conn.execute(
+            "SELECT COUNT(*) as cnt FROM work_reports WHERE created_at >= datetime('now', '-7 days')"
+        )
+        work_reports_count = (await reports_cur.fetchone())["cnt"]
+
+        top_workers_cur = await self._conn.execute("""
+            SELECT m.discord_id, m.game_name, m.rank_id, COUNT(wr.id) AS report_count
+            FROM work_reports wr
+            JOIN members m ON wr.member_id = m.discord_id
+            WHERE wr.created_at >= datetime('now', '-7 days')
+            GROUP BY wr.member_id
+            ORDER BY report_count DESC
+            LIMIT 3
+        """)
+        top_workers = [dict(r) for r in await top_workers_cur.fetchall()]
+
+        # 4. Премии за неделю
+        bonuses_cur = await self._conn.execute("""
+            SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_sum
+            FROM bonuses
+            WHERE issued_at >= datetime('now', '-7 days')
+        """)
+        bonuses_stats = dict(await bonuses_cur.fetchone() or {"count": 0, "total_sum": 0})
+
+        # 5. Взыскания за неделю
+        rep_cur = await self._conn.execute(
+            "SELECT COUNT(*) as cnt FROM reprimands WHERE issued_at >= datetime('now', '-7 days')"
+        )
+        reprimands_count = (await rep_cur.fetchone())["cnt"]
+
+        cleared_cur = await self._conn.execute("""
+            SELECT COUNT(*) as cnt FROM (
+                SELECT id FROM appeals WHERE status='approved' AND created_at >= datetime('now', '-7 days')
+                UNION ALL
+                SELECT id FROM reports WHERE type='reprimand_removal' AND status='approved' AND created_at >= datetime('now', '-7 days')
+            )
+        """)
+        cleared_count = (await cleared_cur.fetchone())["cnt"]
+
+        # 6. Подразделения
+        div_cur = await self._conn.execute("""
+            SELECT position_prefix, COUNT(*) as cnt
+            FROM members
+            WHERE status='active' AND position_prefix IS NOT NULL AND position_prefix != ''
+            GROUP BY position_prefix
+            ORDER BY cnt DESC
+        """)
+        divisions = [dict(r) for r in await div_cur.fetchall()]
+
+        return {
+            "members_overview": members_overview,
+            "new_members_count": new_members_count,
+            "academy_stats": academy_stats,
+            "top_instructor": top_instructor,
+            "promotions_count": promotions_count,
+            "work_reports_count": work_reports_count,
+            "top_workers": top_workers,
+            "bonuses_stats": bonuses_stats,
+            "reprimands_count": reprimands_count,
+            "cleared_count": cleared_count,
+            "divisions": divisions,
+        }
