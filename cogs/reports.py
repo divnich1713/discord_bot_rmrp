@@ -204,7 +204,7 @@ class ReportsCog(commands.Cog, name="Рапорты"):
                                      content_data: dict):
         """Отправляет структурированный рапорт о взыскании в канал рапортов"""
         config = self.bot.config
-        ch_id = config["channels"].get("reports", 0)
+        ch_id = config["channels"].get("reprimand_reports", config["channels"].get("reports", 0))
         guild = interaction.guild
 
         author_data = await self.bot.db.get_member(str(author.id))
