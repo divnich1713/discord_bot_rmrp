@@ -297,7 +297,7 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         await self.bot.db.update_member(
             str(member.id), status="active", rank_id=4,
             joined_faction=datetime.utcnow().isoformat(),
-            position_prefix="",
+            position_prefix="ВБП",
         )
         await self.bot.db.add_promotion(str(member.id), old_rank, 4, str(approved_by.id))
 
@@ -322,9 +322,10 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
                 except Exception:
                     pass
 
-        # Никнейм — только ФИО, без префикса Курсант
+        # Никнейм: «ВБП | Алексей Иванов»
+        nick = f"ВБП | {member_data['game_name']}"[:32]
         try:
-            await member.edit(nick=member_data['game_name'])
+            await member.edit(nick=nick)
         except discord.Forbidden:
             pass
 

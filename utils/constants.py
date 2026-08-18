@@ -31,7 +31,7 @@ RANK_BY_NAME = {r["name"]: r for r in RANKS}
 STATUSES = {
     "candidate": "🔵 Кандидат",
     "cadet":     "🟡 Обучение в Академии",
-    "active":    "🟢 В строю",
+    "active":    "🟢 Временно без подразделения",
     "failed":    "🔴 Отчислен из академии",
     "fired":     "⚫ В архиве (Уволен)",
     "vacation":  "🟠 В отпуске",
