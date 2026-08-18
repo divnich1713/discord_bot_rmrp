@@ -7,7 +7,7 @@ from discord.ext import commands
 
 from utils.checks import faction_member_only, is_senior_staff
 from utils.constants import COLORS, RANK_BY_ID
-from utils.dossier_service import DossierService
+from utils.dossier_service import DossierService, resolve_member_rank
 from utils.embeds import appeal_decision_embed, appeal_embed
 
 
@@ -275,8 +275,9 @@ class AppealModal(discord.ui.Modal, title="⚖️ Ходатайство о сн
         )
 
         # 2. Определяем звание и должность
-        current_rank_id = await DossierService.resolve_member_rank(self.cog.bot, interaction.user)
-        rank_name = RANK_BY_ID.get(current_rank_id, {}).get("name", "Сотрудник")
+        roles_cfg = self.cog.bot.config.get("roles", {})
+        rank_info = resolve_member_rank(roles_cfg, interaction.user, member_data)
+        rank_name = rank_info.get("name", "Сотрудник")
         position_name = member_data.get("position_prefix", "")
 
         # 3. Генерируем Embed
@@ -348,7 +349,15 @@ class AppealsCog(commands.Cog, name="Ходатайства и Обжалова�
     @faction_member_only()
     async def cmd_appeal_alias(self, interaction: discord.Interaction):
         """Синоним команды /ходатайство"""
-        await self.cmd_appeal.callback(self, interaction)
+        member_data = await self.bot.db.get_member(str(interaction.user.id))
+        if not member_data:
+            await interaction.response.send_message(
+                "❌ Вы не являетесь действующим сотрудником Росгвардии!", ephemeral=True
+            )
+            return
+
+        modal = AppealModal(self)
+        await interaction.response.send_modal(modal)
 
 
 async def setup(bot):

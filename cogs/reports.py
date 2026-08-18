@@ -664,6 +664,18 @@ class ReportsCog(commands.Cog, name="Рапорты"):
         modal = ReprimandModal(self, участник)
         await interaction.response.send_modal(modal)
 
+    # ─────────────── РАПОРТ — ОБЖАЛОВАНИЕ / ХОДАТАЙСТВО ───────────────
+
+    @report_group.command(name="обжалование", description="⚖️ Подать ходатайство / обжалование о снятии взыскания")
+    @faction_member_only()
+    async def report_appeal(self, interaction: discord.Interaction):
+        from cogs.appeals import AppealModal, AppealsCog
+        cog = self.bot.get_cog("Ходатайства и Обжалования")
+        if not cog:
+            cog = AppealsCog(self.bot)
+        modal = AppealModal(cog)
+        await interaction.response.send_modal(modal)
+
     # ─────────────── ОТЧЁТ О РАБОТЕ ───────────────
 
     @report_group.command(name="работа", description="📝 Подать отчёт о проделанной работе")

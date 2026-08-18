@@ -74,8 +74,9 @@ class RosguardBot(commands.Bot):
 
         guild = discord.Object(id=self.config["guild_id"])
         self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        print("✅ Slash-команды синхронизированы!")
+        synced = await self.tree.sync(guild=guild)
+        cmd_names = [f"/{c.name}" for c in synced]
+        print(f"✅ Синхронизировано {len(synced)} slash-команд для сервера {self.config['guild_id']}: {', '.join(cmd_names)}")
 
         # Запускаем планировщик один раз в setup_hook (не в on_ready!)
         from utils.scheduler import TaskScheduler
