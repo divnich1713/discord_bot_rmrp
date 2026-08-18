@@ -199,7 +199,7 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
 
         await self._graduate_cadet(участник, member_data, interaction.user, interaction.guild)
         await interaction.followup.send(
-            f"✅ **{member_data['game_name']}** успешно выпущен из академии и переведён в звание Рядовой!",
+            f"✅ **{member_data['game_name']}** успешно выпущен из академии и переведён в звание Сержант!",
             ephemeral=True,
         )
 
@@ -217,7 +217,7 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
 
         await self._graduate_cadet(участник, member_data, interaction.user, interaction.guild)
         await interaction.followup.send(
-            f"✅ **{member_data['game_name']}** принудительно выпущен. Причина: {причина or 'не указана'}",
+            f"✅ **{member_data['game_name']}** принудительно выпущен в звании Сержант. Причина: {причина or 'не указана'}",
             ephemeral=True,
         )
 
@@ -291,19 +291,20 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
 
     async def _graduate_cadet(self, member: discord.Member, member_data: dict,
                                approved_by: discord.Member, guild: discord.Guild):
-        """Внутренний метод: выпускает курсанта → Рядовой"""
+        """Внутренний метод: выпускает курсанта → Сержант (rank_id=4)"""
         from datetime import datetime
+        old_rank = member_data.get("rank_id", 2)
         await self.bot.db.update_member(
-            str(member.id), status="active", rank_id=2,
+            str(member.id), status="active", rank_id=4,
             joined_faction=datetime.utcnow().isoformat(),
             position_prefix="",
         )
-        await self.bot.db.add_promotion(str(member.id), 1, 2, str(approved_by.id))
+        await self.bot.db.add_promotion(str(member.id), old_rank, 4, str(approved_by.id))
 
-        # Меняем роли
+        # Меняем роли: снимаем курсантские и рядовой, выдаём сержанта
         config = self.bot.config
         roles_cfg = config["roles"]
-        for key in ["cadet", "candidate", "failed_cadet"]:
+        for key in ["cadet", "candidate", "failed_cadet", "private"]:
             rid = roles_cfg.get(key, 0)
             if rid:
                 role = guild.get_role(rid)
@@ -312,16 +313,16 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
                         await member.remove_roles(role)
                     except Exception:
                         pass
-        private_role_id = roles_cfg.get("private", 0)
-        if private_role_id:
-            role = guild.get_role(private_role_id)
+        sergeant_role_id = roles_cfg.get("sergeant", 0)
+        if sergeant_role_id:
+            role = guild.get_role(sergeant_role_id)
             if role:
                 try:
-                    await member.add_roles(role, reason="Выпуск из академии АВНГ")
+                    await member.add_roles(role, reason="Выпуск из академии АВНГ — присвоение звания Сержант")
                 except Exception:
                     pass
 
-        # Никнейм — только ФИО, без ранговых префиксов
+        # Никнейм — только ФИО, без префикса Курсант
         try:
             await member.edit(nick=member_data['game_name'])
         except discord.Forbidden:
@@ -333,10 +334,10 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
             await DossierService.log_event(
                 self.bot, guild, str(member.id),
                 title="🎓 Успешное окончание Академии АВНГ",
-                description="Курсант успешно завершил обучение в Академии АВНГ и зачислен в ряды Росгвардии в звании **Рядовой**.",
+                description="Курсант успешно завершил обучение в Академии АВНГ и зачислен в ряды Росгвардии в звании **Сержант [СРЖ]**.",
                 color=COLORS["success"],
                 fields=[
-                    ("Присвоенное звание", "Рядовой [РД]", True),
+                    ("Присвоенное звание", "Сержант [СРЖ]", True),
                     ("Инструктор / Выпустил", approved_by.mention, True),
                 ],
                 author=approved_by,
@@ -350,7 +351,7 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
                 title="🎓 Вы окончили Академию АВНГ!",
                 description=(
                     f"Поздравляем, **{member_data['game_name']}**!\n\n"
-                    "Вы успешно прошли обучение и получаете звание **Рядовой**.\n"
+                    "Вы успешно прошли обучение и получаете звание **Сержант**.\n"
                     "Добро пожаловать в ряды Росгвардии! ⚔️"
                 ),
                 color=COLORS["success"],
@@ -366,7 +367,7 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         if log_ch:
             e = discord.Embed(
                 title="🎓 Выпуск из Академии АВНГ",
-                description=f"**{member_data['game_name']}** {member.mention} → Рядовой",
+                description=f"**{member_data['game_name']}** {member.mention} → Сержант",
                 color=COLORS["success"],
             )
             e.add_field(name="Выпустил", value=approved_by.mention)

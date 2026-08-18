@@ -490,12 +490,13 @@ class ApplicationDecisionView(discord.ui.View):
                 give_military_id_role = self._has_military_id(military_id_value)
                 log.info(f"Военный билет значение из БД: {military_id_value!r}, выдаём роль: {give_military_id_role}")
 
-                # ── Базовые роли курсанта ──
+                # ── Базовые роли курсанта (во время академии звание Рядовой) ──
                 cadet_role_keys = [
                     "cadet",            # Курсант АВНГ
                     "sotrudnik_fsvng",  # Сотрудник ФСВНГ
                     "div_avng",         # Академия Войск Национальной Гвардии
                     "zvanie_separator", # ──── | Звание | ────
+                    "private",          # Рядовой
                 ]
                 for key in cadet_role_keys:
                     rid = roles.get(key, 0)
@@ -539,7 +540,7 @@ class ApplicationDecisionView(discord.ui.View):
                 await self.cog.bot.db.update_member(
                     str(target.id),
                     status="cadet",
-                    rank_id=1,
+                    rank_id=2,
                     position_prefix="Курсант",
                     static_id=military_id_value if False else (app_data.get("static_id") if app_data else ""),
                     military_id=military_id_value,
