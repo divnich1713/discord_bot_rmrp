@@ -17,6 +17,30 @@ def _rank_name(rank_id: int) -> str:
     return r["name"] if r else "Неизвестно"
 
 
+def resolve_member_rank(
+    roles_cfg: Optional[Dict],
+    discord_member: Optional[discord.Member],
+    member_data: Dict,
+) -> dict:
+    """
+    Определяет актуальное звание сотрудника по его выданным ролям на сервере Discord.
+    Проверяет роли от высшего звания к низшему (генерал -> ... -> рядовой -> курсант).
+    Если роль не найдена, использует rank_id из базы данных.
+    """
+    if discord_member and roles_cfg:
+        user_role_ids = {r.id for r in discord_member.roles}
+        for r in reversed(RANKS):
+            role_key = r.get("role_key")
+            if not role_key:
+                continue
+            rid = roles_cfg.get(role_key, 0)
+            if rid and rid in user_role_ids:
+                return r
+
+    rank_id = member_data.get("rank_id", 0)
+    return RANK_BY_ID.get(rank_id, RANKS[0])
+
+
 def forum_dossier_embed(
     member_data: Dict,
     discord_member: Optional[discord.Member],
@@ -24,6 +48,7 @@ def forum_dossier_embed(
     bonuses: List[Dict],
     reprimands: List[Dict],
     report_count: int,
+    roles_cfg: Optional[Dict] = None,
 ) -> discord.Embed:
     """Генерирует главную карточку личного дела для первого сообщения ветки форума."""
     case_num = member_data.get("case_number") or 1
@@ -32,8 +57,7 @@ def forum_dossier_embed(
     static_id = member_data.get("static_id") or "—"
     military_id = member_data.get("military_id") or "—"
 
-    rank_id = member_data.get("rank_id", 0)
-    rank = RANK_BY_ID.get(rank_id, RANKS[0])
+    rank = resolve_member_rank(roles_cfg, discord_member, member_data)
     status_key = member_data.get("status", "cadet")
     status_label = STATUSES.get(status_key, status_key)
     pos_prefix = member_data.get("position_prefix") or ""
@@ -242,6 +266,12 @@ class DossierService:
         reprimands = await bot.db.get_member_reprimands(discord_id)
         report_count = await bot.db.count_work_reports(discord_id)
 
+        roles_cfg = bot.config.get("roles", {})
+        current_rank = resolve_member_rank(roles_cfg, discord_member, member_data)
+        if current_rank["id"] != member_data.get("rank_id"):
+            await bot.db.update_member(discord_id, rank_id=current_rank["id"])
+            member_data["rank_id"] = current_rank["id"]
+
         card_embed = forum_dossier_embed(
             member_data=member_data,
             discord_member=discord_member,
@@ -249,6 +279,7 @@ class DossierService:
             bonuses=bonuses,
             reprimands=reprimands,
             report_count=report_count,
+            roles_cfg=roles_cfg,
         )
 
         display_name = game_name or member_data.get("game_name") or (discord_member.display_name if discord_member else "Сотрудник")
@@ -310,6 +341,12 @@ class DossierService:
         reprimands = await bot.db.get_member_reprimands(discord_id)
         report_count = await bot.db.count_work_reports(discord_id)
 
+        roles_cfg = bot.config.get("roles", {})
+        current_rank = resolve_member_rank(roles_cfg, discord_member, member_data)
+        if current_rank["id"] != member_data.get("rank_id"):
+            await bot.db.update_member(discord_id, rank_id=current_rank["id"])
+            member_data["rank_id"] = current_rank["id"]
+
         card_embed = forum_dossier_embed(
             member_data=member_data,
             discord_member=discord_member,
@@ -317,6 +354,7 @@ class DossierService:
             bonuses=bonuses,
             reprimands=reprimands,
             report_count=report_count,
+            roles_cfg=roles_cfg,
         )
 
         # Редактируем стартовое сообщение

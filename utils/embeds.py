@@ -272,8 +272,10 @@ def promotion_embed(member: discord.Member, from_rank: int,
 
 def dossier_embed(member_data: Dict, discord_member: Optional[discord.Member],
                    promotions: List[Dict], bonuses: List[Dict],
-                   reprimands: List[Dict], report_count: int) -> discord.Embed:
-    rank = RANK_BY_ID.get(member_data.get("rank_id", 0), RANKS[0])
+                   reprimands: List[Dict], report_count: int,
+                   roles_cfg: Optional[Dict] = None) -> discord.Embed:
+    from utils.dossier_service import resolve_member_rank
+    rank = resolve_member_rank(roles_cfg, discord_member, member_data)
     status_key = member_data.get("status", "cadet")
     status_label = STATUSES.get(status_key, status_key)
 

@@ -35,7 +35,10 @@ class DossierCog(commands.Cog, name="Личные дела"):
             self.bot.db.count_work_reports(str(target.id)),
         )
 
-        embed = dossier_embed(member_data, target, promotions, bonuses, reprimands, report_count)
+        embed = dossier_embed(
+            member_data, target, promotions, bonuses, reprimands, report_count,
+            roles_cfg=self.bot.config.get("roles")
+        )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="состав", description="⚔️ Полный список личного состава")

@@ -496,7 +496,6 @@ class ApplicationDecisionView(discord.ui.View):
                     "sotrudnik_fsvng",  # Сотрудник ФСВНГ
                     "div_avng",         # Академия Войск Национальной Гвардии
                     "zvanie_separator", # ──── | Звание | ────
-                    "private",          # Рядовой
                 ]
                 for key in cadet_role_keys:
                     rid = roles.get(key, 0)
