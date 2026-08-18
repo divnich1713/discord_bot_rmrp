@@ -289,7 +289,7 @@ class TransferModal(discord.ui.Modal, title="🔄 Заявление — Пер�
 #  МОДАЛЬНАЯ ФОРМА ГОС.СОТРУДНИК — 4 поля
 # ─────────────────────────────────────────────
 
-class GosModal(discord.ui.Modal, title="🏗️ Заявление — Гос.Сотрудник"):
+class GosModal(discord.ui.Modal, title="👮 Заявление — Гос.Сотрудник"):
     static_id = discord.ui.TextInput(
         label="Статик ID",
         placeholder="Например: 123-123",
@@ -351,7 +351,7 @@ class GosModal(discord.ui.Modal, title="🏗️ Заявление — Гос.С
 
         embed = discord.Embed(
             title=f"📨 Новое заявление #{app_id}",
-            description="**Тип:** 🏗️ Гос.Сотрудник",
+            description="**Тип:** 👮 Гос.Сотрудник",
             color=0x2ECC71,
             timestamp=datetime.utcnow(),
         )
@@ -698,7 +698,7 @@ class ApplicationPanelView(discord.ui.View):
         )
 
     @discord.ui.button(
-        label="🏙️  Гос. Сотрудник",
+        label="👮  Гос. Сотрудник",
         style=discord.ButtonStyle.success,
         custom_id="app_panel_gos",
         row=0,
@@ -752,7 +752,7 @@ class ApplicationsCog(commands.Cog, name="Заявления"):
             "🔄 **ПЕРЕВОД / ВОССТАНОВЛЕНИЕ**\n"
             "› Перевод из другого подразделения или восстановление после отсутствия.\n"
             "› Укажите прежнюю структуру и звание.\n\n"
-            "🏙️ **ГОС. СОТРУДНИК**\n"
+            "👮 **ГОС. СОТРУДНИК**\n"
             "› Оформление статуса государственного сотрудника.\n"
             "› Укажите структуру и звание в вашей организации.\n"
             "―――――――――――――――――――――――\n"
