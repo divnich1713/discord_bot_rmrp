@@ -172,8 +172,46 @@ class ReportsCog(commands.Cog, name="Рапорты"):
                                     old_rank, new_rank_id, approved_by)
                 await promotions_ch.send(embed=e)
 
+            # Лог в личное дело (Форум)
+            try:
+                from utils.dossier_service import DossierService
+                from utils.constants import RANK_BY_ID
+                await DossierService.log_event(
+                    self.bot, guild, target_id,
+                    title="📈 Повышение по рапорту",
+                    description=f"Рапорт #{report['id']} одобрен. Присвоено звание **{RANK_BY_ID[new_rank_id]['name']}**.",
+                    color=COLORS["gold"],
+                    fields=[
+                        ("Прежнее звание", RANK_BY_ID[old_rank]["name"], True),
+                        ("Новое звание", RANK_BY_ID[new_rank_id]["name"], True),
+                        ("Одобрил рапорт", approved_by.mention, True),
+                    ],
+                    author=approved_by,
+                )
+            except Exception:
+                pass
+
         elif type_ in ("fire", "self_fire"):
             await self.bot.db.update_member(target_id, status="fired", rank_id=0)
+
+            # Лог в личное дело (Форум)
+            try:
+                from utils.dossier_service import DossierService
+                fire_reason = report.get("reason", "Рапорт на увольнение / самоотвод")
+                await DossierService.log_event(
+                    self.bot, guild, target_id,
+                    title="⚫ Приказ об увольнении / Архивирование дела",
+                    description=f"Сотрудник уволен из рядов Росгвардии по рапорту #{report['id']}.",
+                    color=COLORS["dark"],
+                    fields=[
+                        ("Причина", fire_reason, False),
+                        ("Приказ утвердил", approved_by.mention, True),
+                    ],
+                    author=approved_by,
+                )
+            except Exception:
+                pass
+
             if target:
                 fired_role_id = self.bot.config["roles"].get("fired", 0)
                 # Убираем все роли фракции
@@ -212,6 +250,23 @@ class ReportsCog(commands.Cog, name="Рапорты"):
         elif type_ == "reprimand":
             reason = report.get("reason", "")
             await self.bot.db.add_reprimand(target_id, reason, str(approved_by.id))
+
+            # Лог в личное дело (Форум)
+            try:
+                from utils.dossier_service import DossierService
+                await DossierService.log_event(
+                    self.bot, guild, target_id,
+                    title="⚠️ Приказ о дисциплинарном взыскании",
+                    description=f"Сотруднику назначено дисциплинарное взыскание по рапорту #{report['id']}.",
+                    color=COLORS["warning"],
+                    fields=[
+                        ("Причина", reason or "Нарушение устава", False),
+                        ("Взыскание наложил", approved_by.mention, True),
+                    ],
+                    author=approved_by,
+                )
+            except Exception:
+                pass
 
     async def _apply_rank_to_member(self, member: discord.Member, rank_id: int,
                                      guild: discord.Guild):

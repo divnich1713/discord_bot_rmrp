@@ -21,6 +21,8 @@ _MEMBER_ALLOWED_FIELDS = frozenset({
     "game_name", "rank_id", "status", "notes",
     "reminder_sent", "position_prefix",
     "joined_academy", "joined_faction", "added_by",
+    "dossier_thread_id", "dossier_message_id",
+    "case_number", "static_id", "military_id",
 })
 
 def _now() -> str:
@@ -62,7 +64,12 @@ class Database:
                 added_by      TEXT,
                 notes         TEXT,
                 reminder_sent INTEGER DEFAULT 0,
-                position_prefix TEXT DEFAULT ''
+                position_prefix TEXT DEFAULT '',
+                dossier_thread_id TEXT,
+                dossier_message_id TEXT,
+                case_number   INTEGER,
+                static_id     TEXT,
+                military_id   TEXT
             );
 
             -- Заявки на вступление
@@ -139,43 +146,28 @@ class Database:
                 assigned_by   TEXT NOT NULL,
                 assigned_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
                 completed     INTEGER DEFAULT 0,
-                completed_at  DATETIME,
-                confirmed_by  TEXT
-            );
-
-            -- Рапорты
-            CREATE TABLE IF NOT EXISTS reports (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                type          TEXT NOT NULL,
-                author_id     TEXT NOT NULL,
-                target_id     TEXT NOT NULL,
-                reason        TEXT,
-                new_rank_id   INTEGER,
-                status        TEXT DEFAULT 'pending',
-                reviewed_by   TEXT,
-                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-                reviewed_at   DATETIME,
-                message_id    TEXT
-            );
-
-            -- История повышений
-            CREATE TABLE IF NOT EXISTS promotions (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                member_id     TEXT NOT NULL,
-                from_rank     INTEGER NOT NULL,
-                to_rank       INTEGER NOT NULL,
-                approved_by   TEXT NOT NULL,
-                date          DATETIME DEFAULT CURRENT_TIMESTAMP,
-                report_id     INTEGER
+                completed_at  DATETIME
             );
 
             -- Премии
             CREATE TABLE IF NOT EXISTS bonuses (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 member_id     TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
                 reason        TEXT NOT NULL,
-                given_by      TEXT NOT NULL,
-                date          DATETIME DEFAULT CURRENT_TIMESTAMP
+                issued_by     TEXT NOT NULL,
+                issued_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Взыскания
+            CREATE TABLE IF NOT EXISTS reprimands (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id     TEXT NOT NULL,
+                type          TEXT NOT NULL,
+                reason        TEXT NOT NULL,
+                issued_by     TEXT NOT NULL,
+                issued_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+                active        INTEGER DEFAULT 1
             );
 
             -- Отчёты о работе
@@ -183,22 +175,77 @@ class Database:
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 member_id     TEXT NOT NULL,
                 content       TEXT NOT NULL,
+                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                reviewed_by   TEXT,
+                status        TEXT DEFAULT 'pending'
+            );
+
+            -- История повышений
+            CREATE TABLE IF NOT EXISTS promotions (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id     TEXT NOT NULL,
+                old_rank_id   INTEGER NOT NULL,
+                new_rank_id   INTEGER NOT NULL,
+                promoted_by   TEXT NOT NULL,
+                promoted_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+                reason        TEXT
+            );
+
+            -- Рапорты
+            CREATE TABLE IF NOT EXISTS reports (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                author_id     TEXT NOT NULL,
+                target_id     TEXT,
+                type          TEXT NOT NULL,
+                content       TEXT NOT NULL,
+                status        TEXT DEFAULT 'pending',
+                reviewed_by   TEXT,
+                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                message_id    TEXT
+            );
+
+            -- Логи бота
+            CREATE TABLE IF NOT EXISTS bot_logs (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type    TEXT NOT NULL,
+                actor_id      TEXT,
+                target_id     TEXT,
+                details       TEXT,
                 created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
-            -- Взыскания
-            CREATE TABLE IF NOT EXISTS reprimands (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                member_id     TEXT NOT NULL,
-                reason        TEXT NOT NULL,
-                given_by      TEXT NOT NULL,
-                type          TEXT DEFAULT 'warning',
-                date          DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
+        """)
+        await self._conn.commit()
 
-            -- ── Индексы для быстрых запросов ──
+        # Безопасные миграции колонок (выполняются до создания индексов)
+        migrations = [
+            ("members", "position_prefix", "TEXT DEFAULT ''"),
+            ("members", "dossier_thread_id", "TEXT"),
+            ("members", "dossier_message_id", "TEXT"),
+            ("members", "case_number", "INTEGER"),
+            ("members", "static_id", "TEXT"),
+            ("members", "military_id", "TEXT"),
+            ("applications", "static_id", "TEXT"),
+            ("applications", "military_id", "TEXT"),
+            ("applications", "app_type", "TEXT DEFAULT 'interview'"),
+            ("applications", "experience", "TEXT"),
+            ("applications", "channel_id", "TEXT"),
+        ]
+        for table, col, coltype in migrations:
+            try:
+                await self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
+                await self._conn.commit()
+            except Exception:
+                pass  # Колонка уже существует
+
+        # Индексы
+        await self._conn.executescript("""
             CREATE INDEX IF NOT EXISTS idx_members_status
                 ON members(status);
+            CREATE INDEX IF NOT EXISTS idx_members_case_number
+                ON members(case_number);
+            CREATE INDEX IF NOT EXISTS idx_members_static_id
+                ON members(static_id);
             CREATE INDEX IF NOT EXISTS idx_applications_discord_status
                 ON applications(discord_id, status);
             CREATE INDEX IF NOT EXISTS idx_test_attempts_member_test
@@ -219,22 +266,6 @@ class Database:
                 ON reports(target_id, status);
         """)
         await self._conn.commit()
-
-        # Безопасные миграции
-        for col, coltype in [
-            ("position_prefix", "TEXT DEFAULT ''"),
-            ("static_id",   "TEXT"),
-            ("military_id", "TEXT"),
-            ("app_type",    "TEXT DEFAULT 'interview'"),
-            ("experience",  "TEXT"),
-            ("channel_id",  "TEXT"),
-        ]:
-            try:
-                table = "members" if col == "position_prefix" else "applications"
-                await self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
-                await self._conn.commit()
-            except Exception:
-                pass  # Колонка уже существует
 
         print("✅ База данных инициализирована!")
 
@@ -261,6 +292,28 @@ class Database:
         )
         row = await cur.fetchone()
         return dict(row) if row else None
+
+    async def get_member_by_case_number(self, case_number: int) -> Optional[Dict]:
+        cur = await self._conn.execute(
+            "SELECT * FROM members WHERE case_number = ?", (case_number,)
+        )
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def get_member_by_static_id(self, static_id: str) -> Optional[Dict]:
+        cur = await self._conn.execute(
+            "SELECT * FROM members WHERE static_id = ? OR static_id LIKE ?",
+            (static_id, f"%{static_id}%")
+        )
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def get_next_case_number(self) -> int:
+        cur = await self._conn.execute(
+            "SELECT COALESCE(MAX(case_number), 0) + 1 AS next_num FROM members"
+        )
+        row = await cur.fetchone()
+        return int(row["next_num"]) if row and row["next_num"] else 1
 
     async def get_all_members(self, status: str = None) -> List[Dict]:
         if status:

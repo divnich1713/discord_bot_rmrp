@@ -537,8 +537,14 @@ class ApplicationDecisionView(discord.ui.View):
                         log.error(f"❌ add_roles ошибка для {target}: {e}")
 
                 await self.cog.bot.db.add_member(str(target.id), self.game_name, str(interaction.user.id))
-                await self.cog.bot.db.update_member(str(target.id), status="cadet", rank_id=1,
-                                                     position_prefix="Курсант")
+                await self.cog.bot.db.update_member(
+                    str(target.id),
+                    status="cadet",
+                    rank_id=1,
+                    position_prefix="Курсант",
+                    static_id=military_id_value if False else (app_data.get("static_id") if app_data else ""),
+                    military_id=military_id_value,
+                )
 
                 # Никнейм: «Курсант | Алексей Накамура»
                 nick = f"Курсант | {self.game_name}"[:32]
@@ -559,6 +565,7 @@ class ApplicationDecisionView(discord.ui.View):
 
                 app_data = await self.cog.bot.db.get_application(self.app_id)
                 chosen_rank_name = (app_data.get("experience") or "").strip() if app_data else ""
+                gos_static = (app_data.get("static_id") or "").strip() if app_data else ""
 
                 for key in ("gossotr", "zvanie_separator"):
                     rid = roles.get(key, 0)
@@ -591,13 +598,51 @@ class ApplicationDecisionView(discord.ui.View):
                         log.error(f"❌ add_roles ошибка гос {target}: {e}")
 
                 await self.cog.bot.db.add_member(str(target.id), self.game_name, str(interaction.user.id))
-                await self.cog.bot.db.update_member(str(target.id), status="active",
-                                                     rank_id=rank_match["id"] if rank_match else 2)
+                await self.cog.bot.db.update_member(
+                    str(target.id),
+                    status="active",
+                    rank_id=rank_match["id"] if rank_match else 2,
+                    static_id=gos_static,
+                )
 
                 try:
                     await target.edit(nick=self.game_name[:32])
                 except discord.Forbidden:
                     pass
+
+            # ── Создание личного дела в канале-форуме ──
+            try:
+                from utils.dossier_service import DossierService
+                app_info = await self.cog.bot.db.get_application(self.app_id)
+                st_id = (app_info.get("static_id") or "—") if app_info else "—"
+                mil_id = (app_info.get("military_id") or "—") if app_info else "—"
+
+                await DossierService.get_or_create_dossier_thread(
+                    self.cog.bot, guild, str(target.id),
+                    game_name=self.game_name,
+                    static_id=st_id,
+                    military_id=mil_id,
+                )
+                app_type_labels = {
+                    "interview": "📢 Собеседование (Зачисление в Академию АВНГ)",
+                    "transfer": "🔄 Перевод / Восстановление (Зачисление в АВНГ)",
+                    "gos": "👮 Государственный Сотрудник",
+                }
+                await DossierService.log_event(
+                    self.cog.bot, guild, str(target.id),
+                    title="📋 Открытие личного дела / Приём на службу",
+                    description=f"Сотрудник зачислен по заявлению: **{app_type_labels.get(self.app_type, self.app_type)}**.",
+                    color=COLORS["success"],
+                    fields=[
+                        ("👤 ФИО", self.game_name, True),
+                        ("🎮 Статик ID", st_id or "—", True),
+                        ("🪖 Военный билет", mil_id or "—", True),
+                        ("✍️ Одобрил", interaction.user.mention, True),
+                    ],
+                    author=interaction.user,
+                )
+            except Exception as e:
+                log.error(f"Ошибка создания досье в форуме для {target}: {e}", exc_info=True)
 
             # DM уведомление
             try:

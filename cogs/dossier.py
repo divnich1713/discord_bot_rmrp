@@ -99,6 +99,175 @@ class DossierCog(commands.Cog, name="Личные дела"):
         e.set_footer(text=f"Всего отчётов: {count}")
         await interaction.followup.send(embed=e, ephemeral=True)
 
+    # ──────────────── АРХИВ ЛИЧНЫХ ДЕЛ (ФОРУМ) ────────────────
+
+    archive_group = app_commands.Group(name="архив", description="📁 Управление Архивом Личных Дел")
+
+    @archive_group.command(name="создать", description="📁 Завести личное дело сотрудника в форуме-архиве")
+    @app_commands.describe(
+        участник="Сотрудник для заведения дела",
+        статик="Игровой статик (ID) (опционально)",
+        военный_билет="Военный билет (да/нет) (опционально)"
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def archive_create(
+        self,
+        interaction: discord.Interaction,
+        участник: discord.Member,
+        статик: str = None,
+        военный_билет: str = None,
+    ):
+        await interaction.response.defer(ephemeral=True)
+        from utils.dossier_service import DossierService
+
+        member_data = await self.bot.db.get_member(str(участник.id))
+        if not member_data:
+            # Создаём запись в БД если её не было
+            await self.bot.db.add_member(str(участник.id), участник.display_name, str(interaction.user.id))
+            member_data = await self.bot.db.get_member(str(участник.id))
+
+        thread = await DossierService.get_or_create_dossier_thread(
+            self.bot,
+            interaction.guild,
+            str(участник.id),
+            game_name=member_data.get("game_name") or участник.display_name,
+            static_id=статик,
+            military_id=военный_билет,
+        )
+
+        if thread:
+            await interaction.followup.send(
+                f"✅ Личное дело для {участник.mention} открыто в ветке: {thread.mention}!",
+                ephemeral=True,
+            )
+        else:
+            forum_ch_id = self.bot.config["channels"].get("dossier_forum", 0)
+            await interaction.followup.send(
+                f"❌ Не удалось создать ветку. Проверьте настройку `dossier_forum` в config.json (текущий ID: `{forum_ch_id}`).",
+                ephemeral=True,
+            )
+
+    @archive_group.command(name="обновить", description="🔄 Принудительно обновить карточку личного дела")
+    @app_commands.describe(участник="Сотрудник")
+    async def archive_update(self, interaction: discord.Interaction, участник: discord.Member):
+        await interaction.response.defer(ephemeral=True)
+        from utils.dossier_service import DossierService
+
+        await DossierService.update_dossier_card(self.bot, interaction.guild, str(участник.id))
+        await interaction.followup.send(f"✅ Карточка личного дела {участник.mention} обновлена!", ephemeral=True)
+
+    @archive_group.command(name="заметка", description="📌 Добавить служебную характеристику / заметку в дело")
+    @app_commands.describe(участник="Сотрудник", текст="Текст характеристики или заметки")
+    async def archive_note(self, interaction: discord.Interaction, участник: discord.Member, текст: str):
+        await interaction.response.defer(ephemeral=True)
+        from utils.dossier_service import DossierService
+        from utils.checks import is_officer
+
+        if not is_officer(interaction):
+            await interaction.followup.send("❌ Только офицеры и командиры могут оставлять служебные заметки!", ephemeral=True)
+            return
+
+        member_data = await self.bot.db.get_member(str(участник.id))
+        if not member_data:
+            await interaction.followup.send("❌ Сотрудник не найден в базе данных!", ephemeral=True)
+            return
+
+        from datetime import datetime
+        dt_str = datetime.utcnow().strftime("%d.%m.%Y")
+        existing_notes = member_data.get("notes") or ""
+        new_note_entry = f"[{dt_str} • {interaction.user.display_name}]: {текст}"
+        combined_notes = f"{existing_notes}\n{new_note_entry}".strip()
+
+        await self.bot.db.update_member(str(участник.id), notes=combined_notes)
+
+        # Логируем заметку в тред форума
+        await DossierService.log_event(
+            self.bot,
+            interaction.guild,
+            str(участник.id),
+            title="📌 Служебная характеристика / Заметка",
+            description=текст,
+            color=0x3498DB,
+            author=interaction.user,
+        )
+
+        await interaction.followup.send(f"✅ Служебная характеристика внесена в дело {участник.mention}!", ephemeral=True)
+
+    @archive_group.command(name="поиск", description="🔍 Найти личное дело в архиве")
+    @app_commands.describe(запрос="Номер дела (напр. 1), статик (123-123), Discord или ник")
+    async def archive_search(self, interaction: discord.Interaction, запрос: str):
+        await interaction.response.defer(ephemeral=True)
+        query = запрос.strip().replace("#", "").replace("ЛД-", "").replace("лд-", "")
+
+        member_data = None
+        # Пробуем по номеру дела
+        if query.isdigit():
+            member_data = await self.bot.db.get_member_by_case_number(int(query))
+
+        # Пробуем по статику
+        if not member_data:
+            member_data = await self.bot.db.get_member_by_static_id(query)
+
+        # Пробуем по Discord ID или имени
+        if not member_data:
+            all_m = await self.bot.db.get_all_members()
+            for m in all_m:
+                if query.lower() in m.get("game_name", "").lower() or query in m.get("discord_id", ""):
+                    member_data = m
+                    break
+
+        if not member_data:
+            await interaction.followup.send(f"❌ Личное дело по запросу «{запрос}» не найдено.", ephemeral=True)
+            return
+
+        thread_id = member_data.get("dossier_thread_id")
+        thread_mention = f"<#{thread_id}>" if thread_id else "_Ветка ещё не создана_"
+        case_num = member_data.get("case_number") or "—"
+        case_str = f"№{case_num:04d}" if isinstance(case_num, int) else f"№{case_num}"
+
+        e = discord.Embed(
+            title=f"📁 Найдено личное дело {case_str}",
+            color=0x1A237E,
+        )
+        e.add_field(name="👤 ФИО", value=member_data.get("game_name", "—"), inline=True)
+        e.add_field(name="🎮 Статик ID", value=member_data.get("static_id") or "—", inline=True)
+        e.add_field(name="🏷️ Discord", value=f"<@{member_data['discord_id']}>", inline=True)
+        e.add_field(name="📁 Ветка в форуме", value=thread_mention, inline=False)
+        await interaction.followup.send(embed=e, ephemeral=True)
+
+    @archive_group.command(name="синхронизировать", description="⚡ Создать дела в форуме для всех членов фракции")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def archive_sync_all(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        from utils.dossier_service import DossierService
+
+        members = await self.bot.db.get_all_members()
+        if not members:
+            await interaction.followup.send("📭 В базе данных нет участников.", ephemeral=True)
+            return
+
+        created = 0
+        updated = 0
+        for m in members:
+            did = m["discord_id"]
+            if not m.get("dossier_thread_id"):
+                t = await DossierService.get_or_create_dossier_thread(
+                    self.bot, interaction.guild, did, game_name=m.get("game_name")
+                )
+                if t:
+                    created += 1
+            else:
+                await DossierService.update_dossier_card(self.bot, interaction.guild, did)
+                updated += 1
+            await asyncio.sleep(0.5)  # Защита от Discord rate-limit
+
+        await interaction.followup.send(
+            f"✅ **Синхронизация архива завершена!**\n"
+            f"• Создано новых дел: **{created}**\n"
+            f"• Обновлено существующих: **{updated}**",
+            ephemeral=True,
+        )
+
 
 async def setup(bot):
     await bot.add_cog(DossierCog(bot))

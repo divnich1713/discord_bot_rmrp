@@ -118,6 +118,24 @@ class TestQuestionView(discord.ui.View):
             )
             await academy_ch.send(embed=log_e)
 
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            res_status = "✅ Сдан" if passed else f"❌ Не сдан (Попытка {attempt_num}/3)"
+            await DossierService.log_event(
+                self.cog.bot, guild, str(self.user_id),
+                title="📝 Прохождение академического теста",
+                description=f"Тест: **{self.test_name}** — {res_status}",
+                color=COLORS["success"] if passed else COLORS["error"],
+                fields=[
+                    ("Результат", f"**{score}%** ({correct}/{total} правильных)", True),
+                    ("Попытка", f"{attempt_num}/3", True),
+                ],
+                author=interaction.user,
+            )
+        except Exception:
+            pass
+
         _test_sessions.pop(self.user_id, None)
         await interaction.response.edit_message(embed=embed, view=None)
 
@@ -236,6 +254,23 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         except discord.Forbidden:
             pass
 
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            await DossierService.log_event(
+                self.bot, guild, str(участник.id),
+                title="❌ Отчисление из Академии АВНГ",
+                description=f"Курсант отчислен из Академии АВНГ.",
+                color=COLORS["error"],
+                fields=[
+                    ("Причина", причина or "Не сдал нормативы / решение инструктора", False),
+                    ("Отчислил", interaction.user.mention, True),
+                ],
+                author=interaction.user,
+            )
+        except Exception:
+            pass
+
         # DM
         try:
             e = discord.Embed(
@@ -260,7 +295,8 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         from datetime import datetime
         await self.bot.db.update_member(
             str(member.id), status="active", rank_id=2,
-            joined_faction=datetime.utcnow().isoformat()
+            joined_faction=datetime.utcnow().isoformat(),
+            position_prefix="",
         )
         await self.bot.db.add_promotion(str(member.id), 1, 2, str(approved_by.id))
 
@@ -289,6 +325,23 @@ class AcademyCog(commands.Cog, name="Академия АВНГ"):
         try:
             await member.edit(nick=member_data['game_name'])
         except discord.Forbidden:
+            pass
+
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            await DossierService.log_event(
+                self.bot, guild, str(member.id),
+                title="🎓 Успешное окончание Академии АВНГ",
+                description="Курсант успешно завершил обучение в Академии АВНГ и зачислен в ряды Росгвардии в звании **Рядовой**.",
+                color=COLORS["success"],
+                fields=[
+                    ("Присвоенное звание", "Рядовой [РД]", True),
+                    ("Инструктор / Выпустил", approved_by.mention, True),
+                ],
+                author=approved_by,
+            )
+        except Exception:
             pass
 
         # DM

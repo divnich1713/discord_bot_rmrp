@@ -35,6 +35,24 @@ class BonusesCog(commands.Cog, name="Премии"):
         if bonuses_ch:
             await bonuses_ch.send(embed=embed)
 
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            from utils.constants import COLORS
+            await DossierService.log_event(
+                self.bot, interaction.guild, str(участник.id),
+                title="⭐ Поощрение / Выдача премии",
+                description=f"Сотрудник поощрён премией #{bonus_id}.",
+                color=COLORS["gold"],
+                fields=[
+                    ("Причина / Заслуги", причина, False),
+                    ("Выдал", interaction.user.mention, True),
+                ],
+                author=interaction.user,
+            )
+        except Exception:
+            pass
+
         # DM участнику
         try:
             await участник.send(embed=embed)

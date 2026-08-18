@@ -85,6 +85,25 @@ class RanksCog(commands.Cog, name="Звания"):
         if promotions_ch:
             await promotions_ch.send(embed=embed)
 
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            from utils.constants import COLORS
+            await DossierService.log_event(
+                self.bot, interaction.guild, str(участник.id),
+                title="📈 Присвоение очередного звания",
+                description=f"Сотрудник повышен в звании до **{RANK_BY_ID[звание.value]['name']}**.",
+                color=COLORS["gold"],
+                fields=[
+                    ("Прежнее звание", RANK_BY_ID[old_rank]["name"], True),
+                    ("Новое звание", RANK_BY_ID[звание.value]["name"], True),
+                    ("Приказ подписал", interaction.user.mention, True),
+                ],
+                author=interaction.user,
+            )
+        except Exception:
+            pass
+
         # DM
         try:
             await участник.send(embed=embed)
@@ -119,6 +138,26 @@ class RanksCog(commands.Cog, name="Звания"):
 
         await self.bot.db.update_member(str(участник.id), rank_id=звание.value)
         await self._apply_rank(участник, звание.value, interaction.guild)
+
+        # Лог в личное дело (Форум)
+        try:
+            from utils.dossier_service import DossierService
+            from utils.constants import COLORS
+            await DossierService.log_event(
+                self.bot, interaction.guild, str(участник.id),
+                title="⬇️ Приказ о понижении в звании",
+                description=f"Сотрудник понижен в звании до **{RANK_BY_ID[звание.value]['name']}**.",
+                color=COLORS["error"],
+                fields=[
+                    ("Прежнее звание", RANK_BY_ID[old_rank]["name"], True),
+                    ("Новое звание", RANK_BY_ID[звание.value]["name"], True),
+                    ("Причина", причина or "Решение командования", False),
+                    ("Приказ подписал", interaction.user.mention, True),
+                ],
+                author=interaction.user,
+            )
+        except Exception:
+            pass
 
         # DM
         try:
