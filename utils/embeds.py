@@ -234,6 +234,49 @@ def report_embed(report_id: int, type_: str, author: discord.Member,
         e.add_field(name="🎖️ Новое звание", value=_rank_name(new_rank_id), inline=True)
     e.add_field(name="📝 Причина / Обоснование", value=reason or "—", inline=False)
     e.set_footer(text=f"ID рапорта: #{report_id} • Ожидает решения командования")
+def reprimand_report_embed(
+    report_id: int,
+    author: discord.Member,
+    author_data: Optional[Dict],
+    target: discord.Member,
+    target_data: Optional[Dict],
+    article: str,
+    proof: str,
+    punishment: str,
+    task: str,
+    punishment_role: Optional[discord.Role] = None,
+) -> discord.Embed:
+    """Генерирует embed для рапорта о дисциплинарном взыскании по образцу."""
+    author_name = author_data.get("game_name", author.display_name) if author_data else author.display_name
+    author_static = author_data.get("static_id", "—") if author_data else "—"
+
+    target_name = target_data.get("game_name", target.display_name) if target_data else target.display_name
+    target_static = target_data.get("static_id", "—") if target_data else "—"
+
+    e = discord.Embed(
+        title=f"📋 РАПОРТ О ДИСЦИПЛИНАРНОМ ВЗЫСКАНИИ #{report_id}",
+        color=COLORS["warning"],
+        timestamp=datetime.utcnow(),
+    )
+    e.add_field(
+        name="1. Заявитель",
+        value=f"{author_name} | `{author_static}` | {author.mention}",
+        inline=False,
+    )
+    e.add_field(
+        name="2. Нарушитель",
+        value=f"{target_name} | `{target_static}` | {target.mention}",
+        inline=False,
+    )
+    e.add_field(name="3. Нарушение / Пункт устава", value=f"**{article}**", inline=True)
+    e.add_field(name="4. Доказательства", value=proof or "По запросу", inline=True)
+
+    punish_str = punishment
+    if punishment_role:
+        punish_str += f" ({punishment_role.mention})"
+    e.add_field(name="5. Мера наказания", value=punish_str, inline=True)
+    e.add_field(name="6. Отработка для снятия", value=f"```\n{task}\n```", inline=False)
+    e.set_footer(text=f"ID рапорта: #{report_id} • 🟡 Ожидает решения командования")
     return e
 
 
