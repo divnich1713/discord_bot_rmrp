@@ -293,6 +293,82 @@ def report_decision_embed(report_id: int, type_: str, approved: bool,
     return e
 
 
+def appeal_embed(
+    appeal_id: int,
+    member: discord.Member,
+    member_data: Optional[Dict],
+    reprimand_url: str,
+    article: str,
+    reason: str,
+    proof: str,
+    rank_name: str = "Сотрудник",
+    position_name: str = "",
+) -> discord.Embed:
+    """Генерирует официальный embed ходатайства в УСБ по образцу пользователя"""
+    fio = member_data.get("game_name", member.display_name) if member_data else member.display_name
+
+    parts = fio.strip().split()
+    if len(parts) >= 3:
+        signature = f"{parts[0]} {parts[1][0]}. {parts[2][0]}."
+    elif len(parts) == 2:
+        signature = f"{parts[0]} {parts[1][0]}."
+    else:
+        signature = fio
+
+    today_str = datetime.utcnow().strftime("%d.%m.%Y")
+    pos_str = f" {position_name}" if position_name else ""
+
+    description = (
+        "**Кому:**\n"
+        "Начальнику УСБ — <@&1527952234422210681>\n"
+        "Заместитель начальника УСБ — <@&1527953170490462290>\n"
+        "**Копию:** <@&1245655611627143168> <@&1471213803445293150> <@&1245655611568427054>\n\n"
+        "```\n"
+        "                    ХОДАТАЙСТВО\n"
+        "        о снятии дисциплинарного взыскания\n"
+        "```\n"
+        f"Я, **{fio}**, {rank_name}{pos_str} ({member.mention}), докладываю, что мне было объявлено дисциплинарное взыскание.\n\n"
+        f"🔗 **Ссылка на приказ / выговор:**\n{reprimand_url}\n\n"
+        f"Докладываю, что в отношении меня было применено дисциплинарное взыскание по причине **{article}**. "
+        f"Прошу вас рассмотреть данное ходатайство для снятия выговора, так как {reason}.\n\n"
+        f"📸 **Фотокарточка / Доказательства:**\n{proof}\n\n"
+        f"**Подпись:** `{signature}`\n"
+        f"**Дата:** `{today_str}`"
+    )
+
+    e = discord.Embed(
+        title=f"⚖️ ХОДАТАЙСТВО О СНЯТИИ ВЗЫСКАНИЯ #{appeal_id}",
+        description=description,
+        color=COLORS["gold"],
+        timestamp=datetime.utcnow(),
+    )
+    e.set_footer(text=f"ID ходатайства: #{appeal_id} • 🟡 Ожидает рассмотрения УСБ / Руководством")
+    return e
+
+
+def appeal_decision_embed(
+    appeal_id: int,
+    original_embed: discord.Embed,
+    approved: bool,
+    reviewer: discord.Member,
+    comment: Optional[str] = None,
+) -> discord.Embed:
+    """Обновляет embed ходатайства при вынесении вердикта УСБ"""
+    e = discord.Embed(
+        title=original_embed.title,
+        description=original_embed.description,
+        color=COLORS["success"] if approved else COLORS["error"],
+        timestamp=datetime.utcnow(),
+    )
+    status_text = "✅ УДОВЛЕТВОРЕНО (Взыскание аннулировано)" if approved else "❌ ОТКЛОНЕНО"
+    e.add_field(name="🏛️ Решение УСБ / Руководства", value=f"**{status_text}**", inline=False)
+    e.add_field(name="Рассмотрел", value=reviewer.mention, inline=True)
+    if comment:
+        e.add_field(name="Комментарий / Резолюция", value=comment, inline=False)
+    e.set_footer(text=f"ID ходатайства: #{appeal_id} • Рассмотрено: {reviewer.display_name}")
+    return e
+
+
 # ─────────────────────────── ПОВЫШЕНИЯ ───────────────────────────
 
 def promotion_embed(member: discord.Member, from_rank: int,

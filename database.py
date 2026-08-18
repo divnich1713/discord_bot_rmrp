@@ -214,6 +214,21 @@ class Database:
                 created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
+            -- Ходатайства о снятии взысканий (УСБ)
+            CREATE TABLE IF NOT EXISTS appeals (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id     TEXT NOT NULL,
+                reprimand_url TEXT,
+                article       TEXT,
+                reason        TEXT,
+                proof         TEXT,
+                status        TEXT DEFAULT 'pending',
+                reviewed_by   TEXT,
+                review_comment TEXT,
+                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                message_id    TEXT
+            );
+
         """)
         await self._conn.commit()
 
@@ -751,3 +766,52 @@ class Database:
         )
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
+
+    # ──────────────── APPEALS (ХОДАТАЙСТВА) ────────────────
+
+    async def add_appeal(self, member_id: str, reprimand_url: str, article: str,
+                         reason: str, proof: str) -> int:
+        async with self._lock:
+            cur = await self._conn.execute(
+                """INSERT INTO appeals (member_id, reprimand_url, article, reason, proof)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (member_id, reprimand_url, article, reason, proof),
+            )
+            await self._conn.commit()
+            return cur.lastrowid
+
+    async def get_appeal(self, appeal_id: int) -> Optional[Dict]:
+        cur = await self._conn.execute(
+            "SELECT * FROM appeals WHERE id=?", (appeal_id,)
+        )
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def update_appeal(self, appeal_id: int, status: str, reviewed_by: str,
+                            review_comment: Optional[str] = None):
+        async with self._lock:
+            await self._conn.execute(
+                "UPDATE appeals SET status=?, reviewed_by=?, review_comment=? WHERE id=?",
+                (status, reviewed_by, review_comment, appeal_id),
+            )
+            await self._conn.commit()
+
+    async def set_appeal_message(self, appeal_id: int, message_id: str):
+        async with self._lock:
+            await self._conn.execute(
+                "UPDATE appeals SET message_id=? WHERE id=?",
+                (message_id, appeal_id),
+            )
+            await self._conn.commit()
+
+    async def remove_latest_reprimand(self, member_id: str) -> bool:
+        """Удаляет последнее активное взыскание сотрудника"""
+        async with self._lock:
+            cur = await self._conn.execute(
+                """DELETE FROM reprimands WHERE id = (
+                    SELECT id FROM reprimands WHERE member_id=? ORDER BY id DESC LIMIT 1
+                )""",
+                (member_id,),
+            )
+            await self._conn.commit()
+            return cur.rowcount > 0

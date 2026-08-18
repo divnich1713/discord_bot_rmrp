@@ -59,6 +59,7 @@ class RosguardBot(commands.Bot):
             "cogs.dossier",
             "cogs.admin",
             "cogs.position",
+            "cogs.appeals",
         ]
         # Параллельная загрузка cogs — быстрее при старте
         results = await asyncio.gather(
