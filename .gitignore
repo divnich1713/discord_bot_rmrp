@@ -1,0 +1,39 @@
+# Конфигурация с токеном — НЕ пушить!
+config.json
+.env
+
+# База данных
+*.db
+*.sqlite
+*.sqlite3
+
+# Логи
+*.log
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.pyc
+venv/
+.venv/
+env/
+
+# Временные скрипты (созданные агентом)
+fix_*.py
+check_db*.py
+check*.py
+debug_*.py
+*.txt
+
+# SQLite WAL files
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
